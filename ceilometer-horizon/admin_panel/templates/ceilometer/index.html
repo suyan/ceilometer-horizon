@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{% trans "Ceilometer Overview" %}{% endblock %}
+
+{% block page_header %}
+  {% include "horizon/common/_page_header.html" with title=_("Ceilometer Overview")%}
+{% endblock page_header %}
+
+{% block main %}
+<link rel='stylesheet' type='text/css' href='{{ STATIC_URL }}ceilometer/css/datepicker.css'>
+<div class="row-fluid">
+  <div class="span12">
+    {{ tab_group.render }}
+  </div>
+</div>
+{% endblock %}

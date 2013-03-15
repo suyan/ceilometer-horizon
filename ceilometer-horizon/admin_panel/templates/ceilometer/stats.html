@@ -1,0 +1,194 @@
+{% load i18n %}
+<style>
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.x.axis path {
+  display: none;
+}
+
+.line {
+  fill: none;
+  stroke: steelblue;
+  stroke-width: 1.5px;
+}
+
+</style>
+
+<script>
+
+
+</script>
+
+<div class="table_wrapper">
+        <div class="table_actions clearfix" style="min-width:100%">
+        <label for="meter" style="display:inline">{% trans "Metric" %}:&nbsp;</label>
+	<select name="meter" id="meter" class="span3 example">
+	{% for meter in meters %}
+		<option value="{{meter}}">
+			{{meter}}
+		</option>
+	{% endfor %}
+	</select>
+        <label for="resource" style="display:inline">{% trans "Resource" %}:&nbsp;</label>
+	<select name="resource" id="resource" class="span3 example">
+	{% for project_id,project_val in resources.items %}
+		<optgroup label="{{project_id}}">
+		{% for user_id, user_val in project_val.items %}
+			<optgroup label="{{user_id}}">
+			{% for resource_id in user_val %}
+				<option value="{{resource_id}}">{{resource_id}}</option>
+			{% endfor %}
+			</optgroup>
+		{% endfor %}
+		</optgroup>
+	{% endfor %}
+	</select>
+
+        <label for="date_from" style="display:inline">{% trans "From" %}:&nbsp;</label>
+        <input type="text" id="date_from" name="date_from" class="span3 example" />
+        <label for="date_to" style="display:inline">{% trans "To" %}:&nbsp;</label>
+        <input type="text" id="date_to" name="date_to" class="span3 example" />
+        <button type="button" id="action_display_chart" class="btn btn-small btn-search action_display_chart">{% trans "Refresh chart" %}</button></div>
+</div>
+<div id="chart_container"></div>
+
+<script type="text/javascript">
+	var parseDate = undefined;
+	var x = undefined;
+	var y = undefined;
+	var xAxis = undefined;
+	var yAxis = undefined;
+	var line = undefined;
+	var svg = undefined;
+
+	var margin = {top: 20, right: 100, bottom: 30, left: 200};
+    	var width = 960 - margin.left - margin.right;
+    	var height = 500 - margin.top - margin.bottom;
+
+
+    function loadChartData()
+    {
+	d3.select("svg").remove();
+
+	svg = d3.select("#chart_container").append("svg")
+		.attr("width", width + margin.left + margin.right)
+		.attr("height", height + margin.top + margin.bottom)
+		.append("g")
+		.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+	// get sample, resource, from and to
+	var sample = $("#meter").val();
+	var resource = $("#resource").val();
+	var from = $("#date_from").val()
+	var to = $("#date_to").val();
+
+	var date_ts = (new Date()).getTime();
+        d3.csv("{%url horizon:admin:ceilometer:samples %}?ts="+date_ts+"&sample="+sample+"&resource="+resource+"&from="+from+"&to="+to,
+		function(error,data) {
+			data.forEach(function(d) {
+				console.log(d);
+				d.date = parseDate(d.date);
+				d.value = +d.value;
+			});
+
+			x.domain(d3.extent(data, function(d) { return d.date; }));
+			y.domain(d3.extent(data, function(d) { return d.value; }));
+
+			svg.append("g")
+      				.attr("class", "x axis")
+      				.attr("transform", "translate(0," + height + ")")
+      				.call(xAxis);
+
+  			svg.append("g")
+      				.attr("class", "y axis")
+      				.call(yAxis)
+    				.append("text")
+      				.attr("transform", "rotate(-90)")
+      				.attr("y", 6)
+      				.attr("dy", ".71em")
+      				.style("text-anchor", "end")
+      				.text("{% trans "Value" %}");
+
+  			svg.append("path")
+      				.datum(data)
+      				.attr("class", "line")
+      				.attr("d", line);
+		}
+        );
+
+    }
+
+
+    document.addEventListener('DOMContentLoaded', function() {
+	$('<script/>', {type: 'text/javascript',
+        	src: '/static/ceilometer/js/bootstrap-datepicker.js'})
+                                                           .appendTo($('head'));
+	$('<script/>', {type: 'text/javascript',
+        	src: '/static/ceilometer/js/d3.v3.min.js'})
+                                                           .appendTo($('head'));
+
+
+        var from = $('#date_from').datepicker()
+        .on('changeDate', function(ev) {
+                if (ev.date.valueOf() > to.date.valueOf()) {
+                        var newDate = new Date(ev.date)
+                        newDate.setDate(newDate.getDate() + 1);
+                        to.setValue(newDate);
+                }
+                from.hide();
+                $('#date_to')[0].focus();
+        }).data('datepicker');
+
+        var to = $('#date_to').datepicker({
+                onRender: function(date) {
+                        return date.valueOf() <= from.date.valueOf() ? 'disabled' : '';
+                }
+        }).on('changeDate', function(ev) {
+          to.hide();
+        }).data('datepicker');
+
+        $(".action_display_chart").click(function()
+        {
+                var active_panel = $("#ceilometer_overview li.active a");
+                var target = active_panel.attr("data-target");
+                loadChartData();
+        });
+
+	// set initial dates, to=Today, from=30 days ago
+	var now = new Date();
+	to.setValue(now);
+	targetDate = new Date();
+	targetDate.setDate(now.getDate() - 30);
+	from.setValue(targetDate);
+
+	// setup chart load first chart
+	parseDate = d3.time.format("%Y-%m-%dT%H:%M:%S").parse;
+	x = d3.time.scale()
+		.range([0, width]);
+
+	y = d3.scale.linear()
+		.range([height, 0]);
+
+	xAxis = d3.svg.axis()
+		.scale(x)
+    		.orient("bottom");
+
+	yAxis = d3.svg.axis()
+		.scale(y)
+    		.orient("left");
+
+	line = d3.svg.line()
+		.x(function(d) { return x(d.date); })
+		.y(function(d) { return y(d.value); });
+
+
+	loadChartData();
+
+    });
+</script>
