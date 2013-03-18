@@ -10,17 +10,16 @@ Just type in the directory:
     python setup.py install
 
 
-Setup the Horizon dashboard
+Add Ceilometer panel to the Horizon dashboard
 -------------------
 
-Modify the `local_settings.py` file in Horizon to add the following lines:
+Add following lines to the `local_settings.py` file in Horizon:
 
     import sys
-        admin_dashboard = sys.modules['openstack-dashboard.admin']
-        admin_dashboard.INSTALLED_APPS += ('ceilometer-horizon.admin_panel',)
-
-        project_dashboard = sys.modules['openstack-dashboard.project']
-        project_dashboard.INSTALLED_APPS += ('ceilometer-horizon.project_panel',)
+    settings = sys.modules['openstack_dashboard.settings']
+    settings.INSTALLED_APPS += ('ceilometer_horizon.admin',)
+    from openstack_dashboard.dashboards.admin import dashboard
+    dashboard.SystemPanels.panels += ('ceilometer',)
 
 
 You may need to restart the apache server to enable the plugin:
