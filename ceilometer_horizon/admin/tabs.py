@@ -19,8 +19,7 @@ from django.utils.translation import ugettext_lazy as _
 
 from horizon import tabs
 
-from openstack_dashboard import api
-from openstack_dashboard.api import ceilometer
+from ceilometer_horizon import api
 
 from .tables import DiskUsageTable, NetworkUsageTable
 
@@ -55,8 +54,8 @@ class StatsTab(tabs.Tab):
 
     def get_context_data(self, request):
         context = {}
-        meter_list = ceilometer.meter_list(self.request)
-        resource_list = ceilometer.resource_list(self.request)
+        meter_list = api.ceilometer.meter_list(self.request)
+        resource_list = api.ceilometer.resource_list(self.request)
 
         meters = []
         # we will allow charts of cumulative type

@@ -23,7 +23,7 @@ from django.http import HttpResponse
 from django.views.generic import View
 
 from .tabs import CeilometerOverviewTabs
-from openstack_dashboard.api import ceilometer
+from ceilometer_horizon.api import ceilometer
 
 
 LOG = logging.getLogger(__name__)

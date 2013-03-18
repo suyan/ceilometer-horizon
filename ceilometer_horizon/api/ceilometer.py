@@ -22,9 +22,8 @@ from ceilometerclient import client as ceilometer_client
 
 from horizon import exceptions
 
-from .base import APIResourceWrapper, APIDictWrapper, url_for
-
-import keystone
+from openstack_dashboard.api.base import APIResourceWrapper, APIDictWrapper, url_for
+from openstack_dashboard.api import keystone
 
 LOG = logging.getLogger(__name__)
 
