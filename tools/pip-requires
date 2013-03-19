@@ -1,0 +1,4 @@
+# Ceilometer-Horizon Core Requirements
+python-ceilometerclient
+svglib
+reportlab
