@@ -1,15 +1,10 @@
 {% load i18n %}
 <style>
-
 .axis path,
 .axis line {
   fill: none;
   stroke: #000;
   shape-rendering: crispEdges;
-}
-
-.x.axis path {
-  display: none;
 }
 
 .line {
@@ -18,6 +13,31 @@
   stroke-width: 1.5px;
 }
 
+.stats_selector
+{
+	min-width:100%;
+}
+.stats_selector label, .stats_selector select, .stats_selector input
+{
+	font-size:11px;
+}
+.stats_selector select
+{
+	height:25px;
+}
+.stats_selector input
+{
+	width:75px;
+}
+
+#meter
+{
+	width:150px;
+}
+#resource
+{
+	width:250px;
+}
 </style>
 
 <script>
@@ -26,38 +46,52 @@
 </script>
 
 <div class="table_wrapper">
-        <div class="table_actions clearfix" style="min-width:100%">
+        <div class="table_actions clearfix stats_selector">
         <label for="meter" style="display:inline">{% trans "Metric" %}:&nbsp;</label>
 	<select name="meter" id="meter" class="span3 example">
 	{% for meter in meters %}
-		<option value="{{meter}}">
-			{{meter}}
+		<option value="{{meter.name}}" data-attr="{{meter.type}}">
+			{{meter.name}}
 		</option>
 	{% endfor %}
 	</select>
         <label for="resource" style="display:inline">{% trans "Resource" %}:&nbsp;</label>
 	<select name="resource" id="resource" class="span3 example">
-	{% for project_id,project_val in resources.items %}
-		<optgroup label="{{project_id}}">
-		{% for user_id, user_val in project_val.items %}
-			<optgroup label="{{user_id}}">
-			{% for resource_id in user_val %}
-				<option value="{{resource_id}}">{{resource_id}}</option>
+		{% for user_val in resources %}
+			{% for resource_val in user_val.resources %}
+				{% if forloop.first %}
+					<optgroup label="{{user_val.name}}">
+				{% endif %}
+				<option value="{{resource_val.id}}" data-attr="{{resource_val.type}}">{{resource_val.name}}</option>
+				{% if forloop.last %}
+				</optgroup>
+				{% endif %}
 			{% endfor %}
-			</optgroup>
 		{% endfor %}
-		</optgroup>
-	{% endfor %}
 	</select>
 
+	<label for="date_range_selectors" style="display:inline">{% trans "Period" %}:&nbsp;</label>
+	<select id="date_options" name="date_options">
+		<option value=""></option>
+		<option value="1" selected>{% trans "Last day" %}</option>
+		<option value="7">{% trans "Last week" %}</option>
+		<option value="15">{% trans "Last 15 days" %}</option>
+		<option value="30">{% trans "Last 30 days" %}</option>
+		<option value="365">{% trans "Last year" %}</option>
+	</select>
         <label for="date_from" style="display:inline">{% trans "From" %}:&nbsp;</label>
         <input type="text" id="date_from" name="date_from" class="span3 example" />
         <label for="date_to" style="display:inline">{% trans "To" %}:&nbsp;</label>
         <input type="text" id="date_to" name="date_to" class="span3 example" />
+        <button type="button" id="action_export_chart" class="btn btn-small btn-search action_export_chart">{% trans "Export chart to PDF" %}</button>
         <button type="button" id="action_display_chart" class="btn btn-small btn-search action_display_chart">{% trans "Refresh chart" %}</button></div>
 </div>
 <div id="chart_container"></div>
 
+<form id="svgform" name="svgform" method="POST" action="{%url horizon:admin:ceilometer:export %}">
+	{% csrf_token %}
+	<input type="hidden" id="svgdata" name="svgdata" value="" />
+</form>
 <script type="text/javascript">
 	var parseDate = undefined;
 	var x = undefined;
@@ -68,8 +102,8 @@
 	var svg = undefined;
 
 	var margin = {top: 20, right: 100, bottom: 30, left: 200};
-    	var width = 960 - margin.left - margin.right;
-    	var height = 500 - margin.top - margin.bottom;
+    	var width = 1100 - margin.left - margin.right;
+    	var height = 480 - margin.top - margin.bottom;
 
 
     function loadChartData()
@@ -92,7 +126,6 @@
         d3.csv("{%url horizon:admin:ceilometer:samples %}?ts="+date_ts+"&sample="+sample+"&resource="+resource+"&from="+from+"&to="+to,
 		function(error,data) {
 			data.forEach(function(d) {
-				console.log(d);
 				d.date = parseDate(d.date);
 				d.value = +d.value;
 			});
@@ -118,12 +151,98 @@
   			svg.append("path")
       				.datum(data)
       				.attr("class", "line")
+				.style("stroke", "steelblue")
+				.style("stroke-width", 1.5)
+				.style("fill", "none")
       				.attr("d", line);
+
+			d3.selectAll("path.domain")
+				.style("fill", "none")
+				.style("stroke", "black")
+				.style("stroke-width", 1);
+
+			d3.selectAll(".axis path")
+				.style("fill", "none")
+				.style("stroke", "black")
+				.style("shape-rendering", "crispEdges");
+
+			d3.selectAll(".axis line")
+				.style("fill", "none")
+				.style("stroke", "black")
+				.style("shape-rendering", "crispEdges");
 		}
         );
 
     }
 
+    function disableOptions()
+    {
+        var option = $("#meter option").filter(":selected");
+        if (option)
+        {
+                var type = option[0].getAttribute("data-attr");
+        }
+
+	$("#resource option").attr("disabled", "disabled");
+	if (type)
+	{
+		// iterate over the depending select, enabling the ones with different type
+		$("#resource option").each(function() {
+			var current_type = $(this).attr("data-attr");
+			if (current_type==type)
+			{
+				$(this).removeAttr("disabled");
+			}
+		});
+	}
+    }
+
+    function refreshPickers(date_interval)
+    {
+	var now = new Date();
+	$("#date_to").datepicker('setValue', now);
+	targetDate = new Date();
+	targetDate.setDate(now.getDate() - date_interval);
+	$("#date_from").datepicker('setValue', targetDate);
+    }
+
+    function setupInitials()
+    {
+	refreshPickers(1);
+
+	// setup chart load first chart
+	parseDate = d3.time.format("%Y-%m-%dT%H:%M:%S").parse;
+	x = d3.time.scale()
+		.range([0, width]);
+
+	y = d3.scale.linear()
+		.range([height, 0]);
+
+	xAxis = d3.svg.axis()
+		.scale(x)
+    		.orient("bottom");
+
+	yAxis = d3.svg.axis()
+		.scale(y)
+    		.orient("left");
+
+	line = d3.svg.line()
+		.x(function(d) { return x(d.date); })
+		.y(function(d) { return y(d.value); });
+
+	disableOptions();
+    }
+
+    function submit_download_form()
+    {
+	var svg = $("#chart_container svg");
+	if (svg)
+	{
+		var svg_xml = (new XMLSerializer).serializeToString(svg[0]);
+		$("#svgdata").val(svg_xml);
+		$("#svgform").submit();
+	}
+    }
 
     document.addEventListener('DOMContentLoaded', function() {
 	$('<script/>', {type: 'text/javascript',
@@ -150,7 +269,7 @@
                         return date.valueOf() <= from.date.valueOf() ? 'disabled' : '';
                 }
         }).on('changeDate', function(ev) {
-          to.hide();
+          $("#date_to").hide();
         }).data('datepicker');
 
         $(".action_display_chart").click(function()
@@ -160,35 +279,26 @@
                 loadChartData();
         });
 
-	// set initial dates, to=Today, from=30 days ago
-	var now = new Date();
-	to.setValue(now);
-	targetDate = new Date();
-	targetDate.setDate(now.getDate() - 30);
-	from.setValue(targetDate);
+	$("#action_export_chart").click(function()
+	{
+		submit_download_form();		
+	});
 
-	// setup chart load first chart
-	parseDate = d3.time.format("%Y-%m-%dT%H:%M:%S").parse;
-	x = d3.time.scale()
-		.range([0, width]);
+	$("#meter").click(function()
+	{
+               	disableOptions();
+	});
 
-	y = d3.scale.linear()
-		.range([height, 0]);
+	$("#date_options").click(function()
+	{
+		var current = $(this).val();
+		if (current)
+		{
+			refreshPickers(current);
+		}
+	});
 
-	xAxis = d3.svg.axis()
-		.scale(x)
-    		.orient("bottom");
-
-	yAxis = d3.svg.axis()
-		.scale(y)
-    		.orient("left");
-
-	line = d3.svg.line()
-		.x(function(d) { return x(d.date); })
-		.y(function(d) { return y(d.value); });
-
-
+	setupInitials();
 	loadChartData();
-
     });
 </script>

@@ -23,8 +23,11 @@ from django.http import HttpResponse
 from django.views.generic import View
 
 from .tabs import CeilometerOverviewTabs
-from ceilometer_horizon.api import ceilometer
+from ..api import ceilometer
 
+from svglib.svglib import SvgRenderer
+from reportlab.graphics import renderPDF
+import xml.dom.minidom
 
 LOG = logging.getLogger(__name__)
 
@@ -57,8 +60,6 @@ class SamplesView(View):
         if len(sample_list)>0:
             # grab latest item
             last = sample_list[-1]
-            print last.timestamp
-            print last.counter_volume
             return last.counter_volume
         else:
             return 0
@@ -90,7 +91,7 @@ class SamplesView(View):
                 current_delta = sample_data.counter_volume - previous
                 previous = sample_data.counter_volume
                 if current_delta<0:
-                    current_delta = 0
+                    current_delta = sample_data.counter_volume
                 samples.append([sample_data.timestamp, current_delta])
 
         # output csv
@@ -101,5 +102,24 @@ class SamplesView(View):
 
         for sample in samples:
             writer.writerow(sample)
+
+        return response
+
+class ExportView(View):
+    def post(self, request, *args, **kwargs):
+        data = request.POST.get('svgdata', '')
+
+        # render svg
+        doc = xml.dom.minidom.parseString(data.encode( "utf-8" ))
+        svg = doc.documentElement
+        svgRenderer = SvgRenderer()
+        svgRenderer.render(svg)
+        drawing = svgRenderer.finish()
+
+        # output to pdf
+        pdf = renderPDF.drawToString(drawing)
+        response = HttpResponse(mimetype='application/pdf')
+        response["Content-Disposition"]= "attachment; filename=chart.pdf"
+        response.write(pdf) 
 
         return response
