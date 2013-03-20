@@ -1,18 +1,5 @@
 {% load i18n %}
 <style>
-.axis path,
-.axis line {
-  fill: none;
-  stroke: #000;
-  shape-rendering: crispEdges;
-}
-
-.line {
-  fill: none;
-  stroke: steelblue;
-  stroke-width: 1.5px;
-}
-
 .stats_selector
 {
 	min-width:100%;
@@ -38,6 +25,16 @@
 {
 	width:250px;
 }
+#date_options
+{
+	width:100px;
+}
+
+#action_display_chart
+{
+	float:none;
+	margin-top:-10px;
+}
 </style>
 
 <script>
@@ -47,44 +44,51 @@
 
 <div class="table_wrapper">
         <div class="table_actions clearfix stats_selector">
-        <label for="meter" style="display:inline">{% trans "Metric" %}:&nbsp;</label>
-	<select name="meter" id="meter" class="span3 example">
-	{% for meter in meters %}
-		<option value="{{meter.name}}" data-attr="{{meter.type}}">
-			{{meter.name}}
-		</option>
-	{% endfor %}
-	</select>
-        <label for="resource" style="display:inline">{% trans "Resource" %}:&nbsp;</label>
-	<select name="resource" id="resource" class="span3 example">
-		{% for user_val in resources %}
-			{% for resource_val in user_val.resources %}
-				{% if forloop.first %}
-					<optgroup label="{{user_val.name}}">
-				{% endif %}
-				<option value="{{resource_val.id}}" data-attr="{{resource_val.type}}">{{resource_val.name}}</option>
-				{% if forloop.last %}
-				</optgroup>
-				{% endif %}
-			{% endfor %}
-		{% endfor %}
-	</select>
+		<span style="float:left;">
+		        <label for="meter" style="display:inline">{% trans "Metric" %}:&nbsp;</label>
+			<select name="meter" id="meter" class="span3 example">
+				{% for meter in meters %}
+				<option value="{{meter.name}}" data-attr="{{meter.type}}">
+				{{meter.name}}
+				</option>
+				{% endfor %}
+			</select>
+       			<label for="resource" style="display:inline">{% trans "Resource" %}:&nbsp;</label>
+			<select name="resource" id="resource" class="span3 example">
+				{% for user_val in resources %}
+					{% for resource_val in user_val.resources %}
+						{% if forloop.first %}
+							<optgroup label="{{user_val.name}}">
+						{% endif %}
+						<option value="{{resource_val.id}}" data-attr="{{resource_val.type}}">{{resource_val.name}}</option>
+						{% if forloop.last %}
+							</optgroup>
+						{% endif %}
+					{% endfor %}
+				{% endfor %}
+			</select>
+			<label for="date_range_selectors" style="display:inline">{% trans "Period" %}:&nbsp;</label>
+			<select id="date_options" name="date_options">
+				<option value=""></option>
+				<option value="1" selected>{% trans "Last day" %}</option>
+				<option value="7">{% trans "Last week" %}</option>
+				<option value="15">{% trans "Last 15 days" %}</option>
+				<option value="30">{% trans "Last 30 days" %}</option>
+				<option value="365">{% trans "Last year" %}</option>
+			</select>
+		</span>
 
-	<label for="date_range_selectors" style="display:inline">{% trans "Period" %}:&nbsp;</label>
-	<select id="date_options" name="date_options">
-		<option value=""></option>
-		<option value="1" selected>{% trans "Last day" %}</option>
-		<option value="7">{% trans "Last week" %}</option>
-		<option value="15">{% trans "Last 15 days" %}</option>
-		<option value="30">{% trans "Last 30 days" %}</option>
-		<option value="365">{% trans "Last year" %}</option>
-	</select>
-        <label for="date_from" style="display:inline">{% trans "From" %}:&nbsp;</label>
-        <input type="text" id="date_from" name="date_from" class="span3 example" />
-        <label for="date_to" style="display:inline">{% trans "To" %}:&nbsp;</label>
-        <input type="text" id="date_to" name="date_to" class="span3 example" />
-        <button type="button" id="action_export_chart" class="btn btn-small btn-search action_export_chart">{% trans "Export chart to PDF" %}</button>
-        <button type="button" id="action_display_chart" class="btn btn-small btn-search action_display_chart">{% trans "Refresh chart" %}</button></div>
+		<span style="float:left;margin-left:15px;">
+	        	<label for="date_from" style="display:inline">{% trans "From" %}:&nbsp;</label>
+	        	<input type="text" id="date_from" name="date_from" class="span3 example" />
+	        	<label for="date_to" style="display:inline">{% trans "To" %}:&nbsp;</label>
+	        	<input type="text" id="date_to" name="date_to" class="span3 example" />
+	        	<button type="button" id="action_display_chart" class="btn btn-small btn-search action_display_chart">{% trans "Refresh" %}</button>
+		</span>
+		<span style="float:right;">
+		        <button type="button" id="action_export_chart" class="btn btn-small btn-search action_export_chart">{% trans "Export chart to PDF" %}</button>
+		</span>
+	</div>
 </div>
 <div id="chart_container"></div>
 
@@ -274,27 +278,31 @@
 
         $(".action_display_chart").click(function()
         {
-                var active_panel = $("#ceilometer_overview li.active a");
-                var target = active_panel.attr("data-target");
                 loadChartData();
         });
+
+	$("#meter").change(function()
+	{
+		disableOptions();
+		loadChartData();
+	});
+	$("#resource").change(function()
+	{
+		loadChartData();
+	});
 
 	$("#action_export_chart").click(function()
 	{
 		submit_download_form();		
 	});
 
-	$("#meter").click(function()
-	{
-               	disableOptions();
-	});
-
-	$("#date_options").click(function()
+	$("#date_options").change(function()
 	{
 		var current = $(this).val();
 		if (current)
 		{
 			refreshPickers(current);
+			loadChartData();
 		}
 	});
 
