@@ -117,10 +117,12 @@ class SamplesView(View):
             previous = self._get_previous_val(source, resource, date_from)
 
             for sample_data in sample_list:
-                current_delta = sample_data.counter_volume - previous
-                previous = sample_data.counter_volume
+                current_volume = sample_data.counter_volume
+
+                current_delta = current_volume - previous
+                previous = current_volume
                 if current_delta<0:
-                    current_delta = sample_data.counter_volume
+                    current_delta = current_volume
                 samples.append([sample_data.timestamp, current_delta])
 
         # if requested period is too long, interpolate data

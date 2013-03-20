@@ -126,6 +126,10 @@ def global_network_usage(request):
                                   "network.outgoing.packets"])
 
 
+def global_cpu_usage(request):
+    return global_usage(request, ["cpu"])
+
+
 def global_usage(request, fields):
     meters = meter_list(request)
 

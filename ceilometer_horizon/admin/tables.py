@@ -17,6 +17,7 @@
 
 import logging
 import re
+import datetime, time
 
 from django.utils.translation import ugettext_lazy as _
 
@@ -94,6 +95,25 @@ class StringWithPlusOperation(str):
             return result
 
 
+class StringWithPlusOperationForTime(str):
+    """Override "+" operation for string object to make."""
+    def __init__(self, *args, **kwargs):
+        super(StringWithPlusOperationForTime, self).__init__(*args, **kwargs)
+
+    def __radd__(self, another):
+        # convert to seconds, add them and convert again
+        seconds1 = sum(int(x) * 60 ** i for i,x in enumerate(reversed(self.split(":"))))
+        if isinstance(another, (int, float)):
+            seconds2 = another
+        else:
+            seconds2 = sum(int(x) * 60 ** i for i,x in enumerate(reversed(another.split(":"))))
+
+        total_time = seconds1 + seconds2
+        converted = "%02d:%02d:%02d" % reduce(lambda a,b: divmod(a[0], b) + a[1:], [(total_time,), 60, 60])
+
+        return str(converted)
+
+
 class DiskUsageFilterAction(tables.FilterAction):
     def filter(self, table, tenants, filter_string):
         q = filter_string.lower()
@@ -154,6 +174,18 @@ class NetworkUsageFilterAction(tables.FilterAction):
         return filter(comp, tenants)
 
 
+class CpuUsageFilterAction(tables.FilterAction):
+    def filter(self, table, tenants, filter_string):
+        q = filter_string.lower()
+
+        def comp(tenant):
+            if q in tenant.name.lower():
+                return True
+            return False
+
+        return filter(comp, tenants)
+
+
 def get_incoming_bytes(sample):
     result = filesizeformat(sample.network_incoming_bytes, float_format)
     return StringWithPlusOperation(result)
@@ -189,3 +221,26 @@ class  NetworkUsageTable(tables.DataTable):
         verbose_name = _("Global Network Usage")
         table_actions = (NetworkUsageFilterAction,)
         multi_select = False
+
+
+def get_cpu_time(sample):
+    cpu_seconds = sample.cpu/1000000000
+    formatted_time = "%02d:%02d:%02d" % reduce(lambda a,b: divmod(a[0], b) + a[1:], [(cpu_seconds,), 60, 60])
+    return StringWithPlusOperationForTime(formatted_time)
+
+
+class CpuUsageTable(tables.DataTable):
+    tenant = tables.Column("tenant", verbose_name=_("Tenant"))
+    user = tables.Column("user", verbose_name=_("User"), sortable=True)
+    instance = tables.Column("resource", verbose_name=_("Resource"), sortable=True)
+    cpu = tables.Column(get_cpu_time, verbose_name=_("CPU time"), summation="sum", sortable=True)
+
+    def get_object_id(self, datum):
+        return datum.tenant + datum.user + datum.resource
+
+    class Meta:
+        name = "global_cpu_usage"
+        verbose_name = _("Global CPU Usage")
+        table_actions = (CpuUsageFilterAction,)
+        multi_select = False
+

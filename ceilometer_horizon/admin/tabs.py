@@ -24,7 +24,7 @@ from openstack_dashboard import api
 from ..api import ceilometer
 from openstack_dashboard.api import keystone
 
-from .tables import DiskUsageTable, NetworkUsageTable
+from .tables import DiskUsageTable, NetworkUsageTable, CpuUsageTable
 
 
 class DiskUsageTab(tabs.TableTab):
@@ -49,6 +49,19 @@ class NetworkUsageTab(tabs.TableTab):
         request = self.tab_group.request
         result = sorted(ceilometer.global_network_usage(request), key=operator.itemgetter('tenant', 'user'))
         return result
+
+
+class CpuUsageTab(tabs.TableTab):
+    table_classes = (CpuUsageTable,)
+    name = _("Global CPU Usage")
+    slug = "global_cpu_usage"
+    template_name = ("horizon/common/_detail_table.html")
+
+    def get_global_cpu_usage_data(self):
+        request = self.tab_group.request
+        result = sorted(ceilometer.global_cpu_usage(request), key=operator.itemgetter('tenant', 'user'))
+        return result
+
 
 class StatsTab(tabs.Tab):
     name = _("Stats")
@@ -109,5 +122,5 @@ class StatsTab(tabs.Tab):
 
 class CeilometerOverviewTabs(tabs.TabGroup):
     slug = "ceilometer_overview"
-    tabs = (DiskUsageTab, NetworkUsageTab,StatsTab,)
+    tabs = (DiskUsageTab, NetworkUsageTab, CpuUsageTab, StatsTab,)
     sticky = True
