@@ -28,6 +28,8 @@ from ..api import ceilometer
 from svglib.svglib import SvgRenderer
 from reportlab.graphics import renderPDF
 import xml.dom.minidom
+import itertools
+import operator
 
 LOG = logging.getLogger(__name__)
 
@@ -36,6 +38,33 @@ class IndexView(tabs.TabbedTableView):
     tab_group_class = CeilometerOverviewTabs
     template_name = 'admin/ceilometer/index.html'
 
+# convert all items in list to hour level
+def to_hours(item):
+    date_obj = datetime.strptime(item[0], '%Y-%m-%dT%H:%M:%S')
+    new_date_str = date_obj.strftime("%Y-%m-%dT%H:00:00")
+    return (new_date_str, item[1])
+
+# convert all items in list to day level
+def to_days(item):
+    date_obj = datetime.strptime(item[0], '%Y-%m-%dT%H:%M:%S')
+    new_date_str = date_obj.strftime("%Y-%m-%dT00:00:00")
+    return (new_date_str, item[1])
+
+# given a set of metrics with same key, group them and calc average
+def reduce_metrics(samples):
+    new_samples = []
+    for key, items in itertools.groupby(samples, operator.itemgetter(0)):
+        grouped_items = []
+        for item in items:
+            grouped_items.append(item[1])
+        item_len = len(grouped_items)
+        if item_len>0:
+            avg = reduce(lambda x, y: x+y, grouped_items)/item_len
+        else:
+            avg = 0
+
+        new_samples.append([key, avg])
+    return new_samples
 
 class SamplesView(View):
 
@@ -93,6 +122,19 @@ class SamplesView(View):
                 if current_delta<0:
                     current_delta = sample_data.counter_volume
                 samples.append([sample_data.timestamp, current_delta])
+
+        # if requested period is too long, interpolate data
+        date_start_obj = datetime.strptime(date_from, "%Y-%m-%d %H:%M:%S")
+        date_end_obj = datetime.strptime(date_to, "%Y-%m-%d %H:%M:%S")
+        delta = (date_end_obj - date_start_obj).days
+
+        if delta>=365:
+            samples = map(to_days, samples)
+            samples = reduce_metrics(samples)
+        elif delta>=30:
+            # reduce metrics to hours
+            samples = map(to_hours, samples)
+            samples = reduce_metrics(samples)
 
         # output csv
         headers = ['date', 'value']
