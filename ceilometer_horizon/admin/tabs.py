@@ -82,7 +82,7 @@ class StatsTab(tabs.Tab):
                         meter_type = "network"
                     else:
                         meter_type = "instance"
-                    meters.append({"name":meter.name, "type":meter_type})
+                    meters.append({"name":meter.name, "type":meter_type, "unit":meter.unit})
                     found_meters.append(meter.name)
 
         # first list all tenants

@@ -48,7 +48,7 @@
 		        <label for="meter" style="display:inline">{% trans "Metric" %}:&nbsp;</label>
 			<select name="meter" id="meter" class="span3 example">
 				{% for meter in meters %}
-				<option value="{{meter.name}}" data-attr="{{meter.type}}">
+				<option value="{{meter.name}}" data-attr="{{meter.type}}" data-unit="{{meter.unit}}">
 				{{meter.name}}
 				</option>
 				{% endfor %}
@@ -105,7 +105,7 @@
 	var line = undefined;
 	var svg = undefined;
 
-	var margin = {top: 20, right: 100, bottom: 30, left: 200};
+	var margin = {top: 40, right: 100, bottom: 30, left: 200};
     	var width = 1100 - margin.left - margin.right;
     	var height = 480 - margin.top - margin.bottom;
 
@@ -129,6 +129,18 @@
 	var date_ts = (new Date()).getTime();
         d3.csv("{%url horizon:admin:ceilometer:samples %}?ts="+date_ts+"&sample="+sample+"&resource="+resource+"&from="+from+"&to="+to,
 		function(error,data) {
+			var chart_title = $("#meter").val()+" {% trans "for resource" %} "+$("#resource").val()+" ({% trans "From" %} "+
+				$("#date_from").val()+" {% trans "to" %} "+$("#date_to").val()+")";
+
+			// read selected option
+        		var option = $("#meter option").filter(":selected");
+			var meter_text = "{% trans "Value" %}";
+        		if (option)
+        		{
+                		var unit = option[0].getAttribute("data-unit");
+				meter_text = meter_text + " ("+unit+")";
+        		}
+
 			data.forEach(function(d) {
 				d.date = parseDate(d.date);
 				d.value = +d.value;
@@ -150,7 +162,7 @@
       				.attr("y", 6)
       				.attr("dy", ".71em")
       				.style("text-anchor", "end")
-      				.text("{% trans "Value" %}");
+      				.text(meter_text);
 
   			svg.append("path")
       				.datum(data)
@@ -159,6 +171,14 @@
 				.style("stroke-width", 1.5)
 				.style("fill", "none")
       				.attr("d", line);
+
+			svg.append("text")
+				.attr("x", (width/2))
+				.attr("y", 0 - (margin.top/2))
+				.attr("text-anchor", "middle")
+				.style("font-size", "14px")
+				.style("text-decoration", "none")
+				.text(chart_title);
 
 			d3.selectAll("path.domain")
 				.style("fill", "none")
@@ -174,6 +194,7 @@
 				.style("fill", "none")
 				.style("stroke", "black")
 				.style("shape-rendering", "crispEdges");
+
 		}
         );
 
