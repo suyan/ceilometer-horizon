@@ -22,7 +22,7 @@ from openstack_dashboard.dashboards.admin import dashboard
 
 
 class Ceilometer(horizon.Panel):
-    name = _("Ceilometer")
+    name = _("Resources usage")
     slug = 'ceilometer'
 
 
