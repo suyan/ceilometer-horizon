@@ -47,25 +47,18 @@
 		<span style="float:left;">
 		        <label for="meter" style="display:inline">{% trans "Metric" %}:&nbsp;</label>
 			<select name="meter" id="meter" class="span3 example">
-				{% for meter in meters %}
-				<option value="{{meter.name}}" data-attr="{{meter.type}}" data-unit="{{meter.unit}}">
-				{{meter.name}}
-				</option>
-				{% endfor %}
+                            {% for group in meters %}
+                                <optgroup label="{{group.0}}">
+                                {% for meter in group.1 %}
+		        		<option value="{{meter.name}}" data-unit="{{meter.unit}}" data-type="{{meter.type}}">
+				            {{meter.name}}
+				        </option>
+                                {% endfor %}
+                                </optgroup>
+                            {% endfor %}
 			</select>
        			<label for="resource" style="display:inline">{% trans "Resource" %}:&nbsp;</label>
 			<select name="resource" id="resource" class="span3 example">
-				{% for user_val in resources %}
-					{% for resource_val in user_val.resources %}
-						{% if forloop.first %}
-							<optgroup label="{{user_val.name}}">
-						{% endif %}
-						<option value="{{resource_val.id}}" data-attr="{{resource_val.type}}">{{resource_val.name}}</option>
-						{% if forloop.last %}
-							</optgroup>
-						{% endif %}
-					{% endfor %}
-				{% endfor %}
 			</select>
 			<label for="date_range_selectors" style="display:inline">{% trans "Period" %}:&nbsp;</label>
 			<select id="date_options" name="date_options">
@@ -104,8 +97,9 @@
 	var yAxis = undefined;
 	var line = undefined;
 	var svg = undefined;
+	var resources = new Array();
 
-	var margin = {top: 40, right: 100, bottom: 30, left: 200};
+	var margin = {top: 40, right: 100, bottom: 80, left: 200};
     	var width = 1100 - margin.left - margin.right;
     	var height = 480 - margin.top - margin.bottom;
 
@@ -126,99 +120,130 @@
 	var from = $("#date_from").val()
 	var to = $("#date_to").val();
 
-	var date_ts = (new Date()).getTime();
-        d3.csv("{%url horizon:admin:ceilometer:samples %}?ts="+date_ts+"&sample="+sample+"&resource="+resource+"&from="+from+"&to="+to,
-		function(error,data) {
-			var chart_title = $("#meter").val()+" {% trans "for resource" %} "+$("#resource").val()+" ({% trans "From" %} "+
-				$("#date_from").val()+" {% trans "to" %} "+$("#date_to").val()+")";
+	if (sample && resource)
+	{
+		var date_ts = (new Date()).getTime();
+        	d3.csv("{%url horizon:admin:ceilometer:samples %}?ts="+date_ts+"&sample="+sample+"&resource="+resource+"&from="+from+"&to="+to,
+			function(error,data) {
+				var chart_title = $("#meter").val()+" {% trans "for resource" %} "+$("#resource").val()+" ({% trans "From" %} "+
+					$("#date_from").val()+" {% trans "to" %} "+$("#date_to").val()+")";
 
-			// read selected option
-        		var option = $("#meter option").filter(":selected");
-			var meter_text = "{% trans "Value" %}";
-        		if (option)
-        		{
-                		var unit = option[0].getAttribute("data-unit");
-				meter_text = meter_text + " ("+unit+")";
-        		}
+				// read selected option
+        			var option = $("#meter option").filter(":selected");
+				var meter_text = "{% trans "Value" %}";
+        			if (option)
+        			{
+                			var unit = option[0].getAttribute("data-unit");
+					meter_text = meter_text + " ("+unit+")";
+        			}
 
-			data.forEach(function(d) {
-				d.date = parseDate(d.date);
-				d.value = +d.value;
-			});
+				data.forEach(function(d) {
+					d.date = parseDate(d.date);
+					d.value = +d.value;
+				});
+	
+				x.domain(d3.extent(data, function(d) { return d.date; }));
+				y.domain(d3.extent(data, function(d) { return d.value; }));
 
-			x.domain(d3.extent(data, function(d) { return d.date; }));
-			y.domain(d3.extent(data, function(d) { return d.value; }));
+				if (current_type=="cumulative")
+				{
+					svg.append("g")
+      						.attr("class", "x axis")
+      						.attr("transform", "translate(0," + height + ")")
+      						.call(xAxis);
+				}
+				else
+				{
+					// show in m/d/Y hh:mm:ss format
+					svg.append("g")
+      						.attr("class", "x axis")
+      						.attr("transform", "translate(0," + height + ")")
+      						.call(xAxis.tickFormat(d3.time.format("%m-%d %H:%M:%S")))
+						.selectAll("text")
+							.style("text-anchor", "end")
+							.attr("dx", "-.8em")
+							.attr("dy", ".15em")
+							.attr("transform", "rotate(-65)");
 
-			svg.append("g")
-      				.attr("class", "x axis")
-      				.attr("transform", "translate(0," + height + ")")
-      				.call(xAxis);
+				}
 
-  			svg.append("g")
-      				.attr("class", "y axis")
-      				.call(yAxis)
-    				.append("text")
-      				.attr("transform", "rotate(-90)")
-      				.attr("y", 6)
-      				.attr("dy", ".71em")
-      				.style("text-anchor", "end")
-      				.text(meter_text);
+  				svg.append("g")
+      					.attr("class", "y axis")
+      					.call(yAxis)
+    					.append("text")
+      					.attr("transform", "rotate(-90)")
+      					.attr("y", 6)
+      					.attr("dy", ".71em")
+      					.style("text-anchor", "end")
+      					.text(meter_text);
 
-  			svg.append("path")
-      				.datum(data)
-      				.attr("class", "line")
-				.style("stroke", "steelblue")
-				.style("stroke-width", 1.5)
-				.style("fill", "none")
-      				.attr("d", line);
+				// draw line or bar depending on type
+				var current_type = $("#meter").find(":selected").attr("data-type");
+				if (current_type=="cumulative")
+				{
+	  				svg.append("path")
+ 		     				.datum(data)
+      						.attr("class", "line")
+						.style("stroke", "steelblue")
+						.style("stroke-width", 1.5)
+						.style("fill", "none")
+      						.attr("d", line);
+				}
+				else
+				{
+					svg.selectAll(".bar")
+						.data(data)
+						.enter().append("rect")
+						.attr("class", "bar")
+						.attr("width", 5)
+						.style("fill", "steelblue")
+      						.attr("x", function(d) { return x(d.date); })
+      						.attr("y", function(d) { return y(d.value); })
+      						.attr("height", function(d) { return height - y(d.value); });						
+				}
 
-			svg.append("text")
-				.attr("x", (width/2))
-				.attr("y", 0 - (margin.top/2))
-				.attr("text-anchor", "middle")
-				.style("font-size", "14px")
-				.style("text-decoration", "none")
-				.text(chart_title);
+				svg.append("text")
+					.attr("x", (width/2))
+					.attr("y", 0 - (margin.top/2))
+					.attr("text-anchor", "middle")
+					.style("font-size", "14px")
+					.style("text-decoration", "none")
+					.text(chart_title);
 
-			d3.selectAll("path.domain")
-				.style("fill", "none")
-				.style("stroke", "black")
-				.style("stroke-width", 1);
+				d3.selectAll("path.domain")
+					.style("fill", "none")
+					.style("stroke", "black")
+					.style("stroke-width", 1);
 
-			d3.selectAll(".axis path")
-				.style("fill", "none")
-				.style("stroke", "black")
-				.style("shape-rendering", "crispEdges");
+				d3.selectAll(".axis path")
+					.style("fill", "none")
+					.style("stroke", "black")
+					.style("shape-rendering", "crispEdges");
 
-			d3.selectAll(".axis line")
-				.style("fill", "none")
-				.style("stroke", "black")
-				.style("shape-rendering", "crispEdges");
+				d3.selectAll(".axis")
+					.style("font-size", "10px");
 
-		}
-        );
-
+				d3.selectAll(".axis line")
+					.style("fill", "none")
+					.style("stroke", "black")
+					.style("shape-rendering", "crispEdges");
+			}
+        	);
+	}
     }
 
     function disableOptions()
     {
-        var option = $("#meter option").filter(":selected");
-        if (option)
-        {
-                var type = option[0].getAttribute("data-attr");
-        }
-
-	$("#resource option").attr("disabled", "disabled");
+	var type = $("#meter").val();
+	// remove all options from select
+	$("#resource").empty();
 	if (type)
 	{
-		// iterate over the depending select, enabling the ones with different type
-		$("#resource option").each(function() {
-			var current_type = $(this).attr("data-attr");
-			if (current_type==type)
-			{
-				$(this).removeAttr("disabled");
-			}
-		});
+		// iterate over the depending select, adding the ones with different type
+		for (res in resources[type])
+		{
+			$("#resource").append("<option value='"+resources[type][res]+"'>"+resources[type][res]+"</option>");
+		}
 	}
     }
 
@@ -296,6 +321,14 @@
         }).on('changeDate', function(ev) {
           $("#date_to").hide();
         }).data('datepicker');
+
+	// master resources list
+        {% for meter_name, resources_by_name in resources.items %}
+		resources["{{meter_name}}"] = new Array();
+		{% for resource in resources_by_name %}
+			resources["{{meter_name}}"].push("{{resource}}");
+                {% endfor %}
+        {% endfor %}
 
         $(".action_display_chart").click(function()
         {

@@ -73,50 +73,40 @@ class StatsTab(tabs.Tab):
         meter_list = ceilometer.meter_list(self.request)
 
         meters = []
-        found_meters = []
-        # we will allow charts of cumulative type
-        for meter in meter_list:
-            if meter.type == "cumulative":
-                if meter.name not in found_meters:
-                    if "network" in meter.name:
-                        meter_type = "network"
-                    else:
-                        meter_type = "instance"
-                    meters.append({"name":meter.name, "type":meter_type, "unit":meter.unit})
-                    found_meters.append(meter.name)
+        meter_types = [
+            ("Compute", [ 
+                {"name":"cpu", "unit":"ns", "type":"cumulative"}, {"name":"disk.read.requests", "unit":"requests", "type":"cumulative"}, 
+                {"name":"disk.read.bytes", "unit":"B", "type":"cumulative"}, {"name":"network.incoming.bytes", "unit":"B", "type":"cumulative"}, 
+                {"name":"network.outgoing.bytes", "unit":"B", "type":"cumulative"}, {"name":"network.incoming.packets", "unit":"packets", "type":"cumulative"},
+                {"name":"network.outgoing.packets", "unit":"packets", "type":"cumulative"}
+              ]
+            ),
+            ("Network", [
+                {"name":"network.create", "unit":"network", "type":"delta"}, {"name":"network.update", "unit":"network", "type":"delta"},
+                {"name":"subnet.create", "unit":"subnet", "type":"delta"}, {"name":"subnet.update", "unit":"subnet", "type":"delta"},
+                {"name":"port.create", "unit":"port", "type":"delta"}, {"name":"port.update", "unit":"port", "type":"delta"},
+                {"name":"router.create", "unit":"router", "type":"delta"}, {"name":"router.update", "unit":"router", "type":"delta"},
+                {"name":"ip.floating.create", "unit":"ip", "type":"delta"}, {"name":"ip.floating.update", "unit":"ip", "type":"delta"}
+              ]
+            ),
+            ("Object Storage", [
+                {"name":"storage.objects.incoming.bytes", "unit":"B", "type":"delta"}, {"name":"storage.objects.outgoing.bytes", "unit":"B", "type":"delta"}
+              ]
+            )
+        ]
 
-        # first list all tenants
+        # grab different resources for metrics, and associate with the right type
+        meters = ceilometer.meter_list(self.request)
         resources = {}
-        users = keystone.user_list(request)
+        for meter in meters:
+            # group resources by meter names
+            if meter.type=='delta' or meter.type=='cumulative':
+                if meter.name not in resources:
+                    resources[meter.name] = []
+                if meter.resource_id not in resources[meter.name]:
+                    resources[meter.name].append(meter.resource_id)
 
-        for user in users:
-            if user.id not in resources:
-                user_data = {}
-                user_data["id"] = user.id
-                user_data["name"] = user.name
-                user_data["resources"] = []
-                resources[user.id] = user_data
-
-            # read resources for that user
-            query = [
-                {'field':'user', 'op':'eq', 'value':user.id}
-            ]
-
-            resource_list = ceilometer.resource_list(self.request, query)
-            for resource in resource_list:
-                if resource.resource_id not in resources[user.id]["resources"]:
-                    if "mac" in resource.metadata:
-                        resource_type = "network"
-                    else:
-                        resource_type = "instance"
-
-                    resources[user.id]["resources"].append({"id":resource.resource_id, "name":resource.metadata["name"]+" - "+resource.resource_id, "type":resource_type})
-
-            # sort by resource name
-            resources[user.id]["resources"] = sorted(resources[user.id]["resources"], key=operator.itemgetter("name"))
-
-        resources = sorted(resources.values(), key=operator.itemgetter("name"))
-        context = {'meters': meters, 'resources': resources}
+        context = {'meters': meter_types, 'resources': resources}
         context.update(csrf(request))
         return context
 

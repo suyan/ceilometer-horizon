@@ -76,6 +76,7 @@ def ceilometerclient(request):
     insecure = getattr(settings, 'OPENSTACK_SSL_NO_VERIFY', False)
     LOG.debug('ceilometerclient connection created using token "%s" '
               'and url "%s"' % (request.user.token.id, url))
+
     return ceilometer_client.Client('2', url, token=request.user.token.id,
                              insecure=insecure)
 
@@ -94,20 +95,20 @@ def sample_list(request, meter_name, query=[]):
     return [Sample(s) for s in samples]
 
 
-def meter_list(request, query=[]):
+def meter_list(request, query=None):
     """List the user's meters."""
     meters = ceilometerclient(request).meters.list(q=query)
     return meters
 
 
-def resource_list(request, query=[]):
+def resource_list(request, query=None):
     """List the resources."""
     resources = ceilometerclient(request).\
-        resources.list(query)
+        resources.list(q=query)
     return resources
 
 
-def statistic_get(request, meter_name, query=[]):
+def statistic_get(request, meter_name, query=None):
     statistics = ceilometerclient(request).\
         statistics.list(meter_name=meter_name, q=query)
     assert len(statistics) == 1
