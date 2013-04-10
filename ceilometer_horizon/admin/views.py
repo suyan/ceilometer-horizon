@@ -18,7 +18,7 @@ import logging
 import csv
 from datetime import datetime, timedelta
 
-from horizon import tabs, views
+from horizon import tabs
 from django.http import HttpResponse
 from django.views.generic import View
 

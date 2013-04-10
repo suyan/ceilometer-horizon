@@ -20,11 +20,10 @@ from django.core.context_processors import csrf
 
 from horizon import tabs
 
-from openstack_dashboard import api
 from ..api import ceilometer
-from openstack_dashboard.api import keystone
 
-from .tables import DiskUsageTable, NetworkUsageTable, CpuUsageTable
+from .tables import (DiskUsageTable, NetworkTrafficUsageTable,
+                     CpuUsageTable, ObjectStoreUsageTable, NetworkUsageTable)
 
 
 class DiskUsageTab(tabs.TableTab):
@@ -35,7 +34,21 @@ class DiskUsageTab(tabs.TableTab):
 
     def get_global_disk_usage_data(self):
         request = self.tab_group.request
-        result = sorted(ceilometer.global_disk_usage(request), key=operator.itemgetter('tenant', 'user'))
+        result = sorted(ceilometer.global_disk_usage(request),
+                        key=operator.itemgetter('tenant', 'user'))
+        return result
+
+
+class NetworkTrafficUsageTab(tabs.TableTab):
+    table_classes = (NetworkTrafficUsageTable,)
+    name = _("Global Network Traffic Usage")
+    slug = "global_network_traffic_usage"
+    template_name = ("horizon/common/_detail_table.html")
+
+    def get_global_network_traffic_usage_data(self):
+        request = self.tab_group.request
+        result = sorted(ceilometer.global_network_traffic_usage(request),
+                        key=operator.itemgetter('tenant', 'user'))
         return result
 
 
@@ -47,7 +60,8 @@ class NetworkUsageTab(tabs.TableTab):
 
     def get_global_network_usage_data(self):
         request = self.tab_group.request
-        result = sorted(ceilometer.global_network_usage(request), key=operator.itemgetter('tenant', 'user'))
+        result = sorted(ceilometer.global_network_usage(request),
+                        key=operator.itemgetter('tenant', 'user'))
         return result
 
 
@@ -59,7 +73,21 @@ class CpuUsageTab(tabs.TableTab):
 
     def get_global_cpu_usage_data(self):
         request = self.tab_group.request
-        result = sorted(ceilometer.global_cpu_usage(request), key=operator.itemgetter('tenant', 'user'))
+        result = sorted(ceilometer.global_cpu_usage(request),
+                        key=operator.itemgetter('tenant', 'user'))
+        return result
+
+
+class GlobalObjectStoreUsageTab(tabs.TableTab):
+    table_classes = (ObjectStoreUsageTable,)
+    name = _("Global Object Store Usage")
+    slug = "global_object_store_usage"
+    template_name = ("horizon/common/_detail_table.html")
+
+    def get_global_object_store_usage_data(self):
+        request = self.tab_group.request
+        result = sorted(ceilometer.global_object_store_usage(request),
+                        key=operator.itemgetter('tenant', 'user'))
         return result
 
 
@@ -74,28 +102,41 @@ class StatsTab(tabs.Tab):
 
         meters = []
         meter_types = [
-            ("Compute", [ 
-                {"name":"cpu", "unit":"ns", "type":"cumulative"}, {"name":"disk.read.requests", "unit":"requests", "type":"cumulative"}, 
-                {"name":"disk.read.bytes", "unit":"B", "type":"cumulative"}, {"name":"network.incoming.bytes", "unit":"B", "type":"cumulative"}, 
-                {"name":"network.outgoing.bytes", "unit":"B", "type":"cumulative"}, {"name":"network.incoming.packets", "unit":"packets", "type":"cumulative"},
-                {"name":"network.outgoing.packets", "unit":"packets", "type":"cumulative"}
-              ]
-            ),
+            ("Compute", [
+                {"name": "cpu", "unit": "ns", "type": "cumulative"},
+                {"name": "disk.read.requests", "unit": "requests",
+                         "type": "cumulative"},
+                {"name": "disk.read.bytes", "unit": "B",
+                         "type": "cumulative"},
+                {"name": "network.incoming.bytes", "unit": "B",
+                         "type": "cumulative"},
+                {"name": "network.outgoing.bytes", "unit": "B",
+                         "type": "cumulative"},
+                {"name": "network.incoming.packets", "unit": "packets",
+                         "type": "cumulative"},
+                {"name": "network.outgoing.packets", "unit": "packets",
+                         "type": "cumulative"}]),
             ("Network", [
-                {"name":"network.create", "unit":"network", "type":"delta"}, {"name":"network.update", "unit":"network", "type":"delta"},
-                {"name":"subnet.create", "unit":"subnet", "type":"delta"}, {"name":"subnet.update", "unit":"subnet", "type":"delta"},
-                {"name":"port.create", "unit":"port", "type":"delta"}, {"name":"port.update", "unit":"port", "type":"delta"},
-                {"name":"router.create", "unit":"router", "type":"delta"}, {"name":"router.update", "unit":"router", "type":"delta"},
-                {"name":"ip.floating.create", "unit":"ip", "type":"delta"}, {"name":"ip.floating.update", "unit":"ip", "type":"delta"}
-              ]
-            ),
+                {"name": "network.create", "unit": "network", "type": "delta"},
+                {"name": "network.update", "unit": "network", "type": "delta"},
+                {"name": "subnet.create", "unit": "subnet", "type": "delta"},
+                {"name": "subnet.update", "unit": "subnet", "type": "delta"},
+                {"name": "port.create", "unit": "port", "type": "delta"},
+                {"name": "port.update", "unit": "port", "type": "delta"},
+                {"name": "router.create", "unit": "router", "type": "delta"},
+                {"name": "router.update", "unit": "router", "type": "delta"},
+                {"name": "ip.floating.create", "unit": "ip", "type": "delta"},
+                {"name": "ip.floating.update", "unit": "ip",
+                         "type": "delta"}]),
             ("Object Storage", [
-                {"name":"storage.objects.incoming.bytes", "unit":"B", "type":"delta"}, {"name":"storage.objects.outgoing.bytes", "unit":"B", "type":"delta"}
-              ]
-            )
+                {"name": "storage.objects.incoming.bytes", "unit": "B",
+                         "type": "delta"},
+                {"name": "storage.objects.outgoing.bytes", "unit": "B",
+                         "type": "delta"}])
         ]
 
-        # grab different resources for metrics, and associate with the right type
+        # grab different resources for metrics,
+        # and associate with the right type
         meters = ceilometer.meter_list(self.request)
         resources = {}
         for meter in meters:
@@ -112,5 +153,6 @@ class StatsTab(tabs.Tab):
 
 class CeilometerOverviewTabs(tabs.TabGroup):
     slug = "ceilometer_overview"
-    tabs = (DiskUsageTab, NetworkUsageTab, CpuUsageTab, StatsTab,)
+    tabs = (DiskUsageTab, NetworkTrafficUsageTab, NetworkUsageTab,
+            GlobalObjectStoreUsageTab, CpuUsageTab, StatsTab,)
     sticky = True

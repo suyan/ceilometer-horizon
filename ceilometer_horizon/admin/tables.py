@@ -17,7 +17,6 @@
 
 import logging
 import re
-import datetime, time
 
 from django.utils.translation import ugettext_lazy as _
 
@@ -102,14 +101,18 @@ class StringWithPlusOperationForTime(str):
 
     def __radd__(self, another):
         # convert to seconds, add them and convert again
-        seconds1 = sum(int(x) * 60 ** i for i,x in enumerate(reversed(self.split(":"))))
+        seconds1 = sum(int(x) * 60 ** i for i, x
+                        in enumerate(reversed(self.split(":"))))
         if isinstance(another, (int, float)):
             seconds2 = another
         else:
-            seconds2 = sum(int(x) * 60 ** i for i,x in enumerate(reversed(another.split(":"))))
+            seconds2 = sum(int(x) * 60 ** i for i, x
+                        in enumerate(reversed(another.split(":"))))
 
         total_time = seconds1 + seconds2
-        converted = "%02d:%02d:%02d" % reduce(lambda a,b: divmod(a[0], b) + a[1:], [(total_time,), 60, 60])
+        converted = "%02d:%02d:%02d" % \
+            reduce(lambda a, b: divmod(a[0], b) + a[1:],
+                   [(total_time,), 60, 60])
 
         return str(converted)
 
@@ -126,32 +129,34 @@ class DiskUsageFilterAction(tables.FilterAction):
         return filter(comp, tenants)
 
 
-def get_read_bytes(sample):
-    result = filesizeformat(sample.disk_read_bytes, float_format)
-    return StringWithPlusOperation(result)
-
-
-def get_write_bytes(sample):
-    result = filesizeformat(sample.disk_write_bytes, float_format)
-    return StringWithPlusOperation(result)
+def get_bytes(field_name=""):
+    def transform(sample):
+        field = getattr(sample, field_name, None)
+        result = filesizeformat(field, float_format)
+        return StringWithPlusOperation(result)
+    return transform
 
 
 class  DiskUsageTable(tables.DataTable):
     tenant = tables.Column("tenant", verbose_name=_("Tenant"), sortable=True)
     user = tables.Column("user", verbose_name=_("User"), sortable=True)
     instance = tables.Column("resource", verbose_name=_("Resource"), sortable=True)
-    disk_read_bytes = tables.Column(get_read_bytes,
-                            verbose_name=_("Disk Read Bytes"), summation="sum", sortable=True)
+    disk_read_bytes = tables.Column(get_bytes("disk_read_bytes"),
+                                    verbose_name=_("Disk Read Bytes"),
+                                    summation="sum",
+                                    sortable=True)
     disk_read_requests = tables.Column("disk_read_requests",
-                            verbose_name=_("Disk Read Requests"),
-                            summation="sum", sortable=True)
-    disk_write_bytes = tables.Column(get_write_bytes,
-                            verbose_name=_("Disk Write Bytes"),
-                            summation="sum", sortable=True)
+                                       verbose_name=_("Disk Read Requests"),
+                                       summation="sum",
+                                       sortable=True)
+    disk_write_bytes = tables.Column(get_bytes("disk_write_bytes"),
+                                     verbose_name=_("Disk Write Bytes"),
+                                     summation="sum",
+                                     sortable=True)
     disk_write_requests = tables.Column("disk_write_requests",
-                            verbose_name=_("Disk Write Requests"),
-                            summation="sum", sortable=True)
-
+                                        verbose_name=_("Disk Write Requests"),
+                                        summation="sum",
+                                        sortable=True)
     def get_object_id(self, datum):
         return datum.tenant + datum.user + datum.resource
 
@@ -160,18 +165,6 @@ class  DiskUsageTable(tables.DataTable):
         verbose_name = _("Global Disk Usage")
         table_actions = (DiskUsageFilterAction,)
         multi_select = False
-
-
-class NetworkUsageFilterAction(tables.FilterAction):
-    def filter(self, table, tenants, filter_string):
-        q = filter_string.lower()
-
-        def comp(tenant):
-            if q in tenant.name.lower():
-                return True
-            return False
-
-        return filter(comp, tenants)
 
 
 class CpuUsageFilterAction(tables.FilterAction):
@@ -186,27 +179,31 @@ class CpuUsageFilterAction(tables.FilterAction):
         return filter(comp, tenants)
 
 
-def get_incoming_bytes(sample):
-    result = filesizeformat(sample.network_incoming_bytes, float_format)
-    return StringWithPlusOperation(result)
+class NetworkTrafficUsageFilterAction(tables.FilterAction):
+    def filter(self, table, tenants, filter_string):
+        q = filter_string.lower()
 
+        def comp(tenant):
+            if q in tenant.name.lower():
+                return True
+            return False
 
-def get_outgoing_bytes(sample):
-    result = filesizeformat(sample.network_outgoing_bytes, float_format)
-    return StringWithPlusOperation(result)
+        return filter(comp, tenants)
 
-
-class  NetworkUsageTable(tables.DataTable):
+class NetworkTrafficUsageTable(tables.DataTable):
     tenant = tables.Column("tenant", verbose_name=_("Tenant"))
     user = tables.Column("user", verbose_name=_("User"), sortable=True)
-    instance = tables.Column("resource", verbose_name=_("Resource"), sortable=True)
-    network_incoming_bytes = tables.Column(get_incoming_bytes,
-                            verbose_name=_("Network incoming Bytes"),
-                            summation="sum", sortable=True)
+    instance = tables.Column("resource",
+                             verbose_name=_("Resource"),
+                             sortable=True)
+    network_incoming_bytes = tables.Column(get_bytes("network_incoming_bytes"),
+                                   verbose_name=_("Network incoming Bytes"),
+                                   summation="sum",
+                                   sortable=True)
     network_incoming_packets = tables.Column("network_incoming_packets",
                             verbose_name=_("Network incoming Packets"),
                             summation="sum", sortable=True)
-    network_outgoing_bytes = tables.Column(get_outgoing_bytes,
+    network_outgoing_bytes = tables.Column(get_bytes("network_outgoing_bytes"),
                             verbose_name=_("Network Outgoing Bytes"),
                             summation="sum", sortable=True)
     network_outgoing_packets = tables.Column("network_outgoing_packets",
@@ -217,23 +214,139 @@ class  NetworkUsageTable(tables.DataTable):
         return datum.tenant + datum.user + datum.resource
 
     class Meta:
+        name = "global_network_traffic_usage"
+        verbose_name = _("Global Network Traffic Usage")
+        table_actions = (NetworkTrafficUsageFilterAction,)
+        multi_select = False
+
+class NetworkUsageFilterAction(tables.FilterAction):
+    def filter(self, table, tenants, filter_string):
+        q = filter_string.lower()
+
+        def comp(tenant):
+            if q in tenant.name.lower():
+                return True
+            return False
+
+        return filter(comp, tenants)
+
+
+class NetworkUsageTable(tables.DataTable):
+    tenant = tables.Column("tenant", verbose_name=_("Tenant"))
+    user = tables.Column("user", verbose_name=_("User"), sortable=True)
+    instance = tables.Column("resource",
+                             verbose_name=_("Resource"),
+                             sortable=True)
+    network_duration = tables.Column("network",
+                                   verbose_name=_("Network Duration"),
+                                   summation="sum",
+                                   sortable=True)
+    network_creation_requests = tables.Column("network_create",
+                            verbose_name=_("Network Creation Requests"),
+                            summation="sum", sortable=True)
+    subnet_duration = tables.Column("subnet",
+                            verbose_name=_("Subnet Duration"),
+                            summation="sum", sortable=True)
+    subnet_creation = tables.Column("subnet_create",
+                            verbose_name=_("Subnet Creation Requests"),
+                            summation="sum", sortable=True)
+    port_duration = tables.Column("port",
+                            verbose_name=_("Port Duration"),
+                            summation="sum", sortable=True)
+    port_creation = tables.Column("port_create",
+                            verbose_name=_("Port Creation Requests"),
+                            summation="sum", sortable=True)
+    router_duration = tables.Column("router",
+                            verbose_name=_("Router Duration"),
+                            summation="sum", sortable=True)
+    router_creation = tables.Column("router_create",
+                            verbose_name=_("Router Creation Requests"),
+                            summation="sum", sortable=True)
+    port_duration = tables.Column("port",
+                            verbose_name=_("Port Duration"),
+                            summation="sum", sortable=True)
+    port_creation = tables.Column("port_create",
+                            verbose_name=_("Port Creation Requests"),
+                            summation="sum", sortable=True)
+    ip_floating_duration = tables.Column("ip_floating",
+                            verbose_name=_("Floating IP Duration"),
+                            summation="sum", sortable=True)
+    ip_floating_creation = tables.Column("ip_floating_create",
+                            verbose_name=_("Floating IP Creation Requests"),
+                            summation="sum", sortable=True)
+
+    def get_object_id(self, datum):
+        return "%s%s%s" % (datum.tenant,
+                           datum.user,
+                           datum.resource)
+
+    class Meta:
         name = "global_network_usage"
         verbose_name = _("Global Network Usage")
-        table_actions = (NetworkUsageFilterAction,)
+        table_actions=(NetworkUsageFilterAction,)
+        multi_select = False
+
+
+class ObjectStoreUsageFilterAction(tables.FilterAction):
+    def filter(self, table, tenants, filter_string):
+        q = filter_string.lower()
+
+        def comp(tenant):
+            if q in tenant.name.lower():
+                return True
+            return False
+
+        return filter(comp, tenants)
+
+
+class ObjectStoreUsageTable(tables.DataTable):
+    tenant = tables.Column("tenant", verbose_name=_("Tenant"))
+    user = tables.Column("user", verbose_name=_("User"), sortable=True)
+    resource = tables.Column("resource",
+                             verbose_name=_("Resource"),
+                             sortable=True)
+    storage_incoming_bytes = tables.Column(get_bytes("storage_objects_incoming_bytes"),
+                           verbose_name=_("Object Storage Incoming Bytes"),
+                           summation="sum", sortable=True)
+    storage_outgoing_bytes = tables.Column(get_bytes("storage_objects_outgoing_bytes"),
+                            verbose_name=_("Object Storage Outgoing Bytes"),
+                            summation="sum", sortable=True)
+    storage_objects = tables.Column("storage_objects",
+                            verbose_name=_("Total Number of Objects"),
+                            summation="sum", sortable=True)
+    storage_objects_size = tables.Column(get_bytes("storage_objects_size"),
+                            verbose_name=_("Total Size of Objects "),
+                            summation="sum", sortable=True)
+
+    def get_object_id(self, datum):
+        return "%s%s%s" % (datum.tenant,
+                           datum.user,
+                           datum.resource)
+
+    class Meta:
+        name = "global_object_store_usage"
+        verbose_name = _("Global Object Store Usage")
+        table_actions = (ObjectStoreUsageFilterAction,)
         multi_select = False
 
 
 def get_cpu_time(sample):
-    cpu_seconds = sample.cpu/1000000000
-    formatted_time = "%02d:%02d:%02d" % reduce(lambda a,b: divmod(a[0], b) + a[1:], [(cpu_seconds,), 60, 60])
+    cpu_seconds = sample.cpu / 1000000000
+    formatted_time = "%02d:%02d:%02d" % \
+        reduce(lambda a, b: divmod(a[0], b) + a[1:], [(cpu_seconds,), 60, 60])
     return StringWithPlusOperationForTime(formatted_time)
 
 
 class CpuUsageTable(tables.DataTable):
     tenant = tables.Column("tenant", verbose_name=_("Tenant"))
     user = tables.Column("user", verbose_name=_("User"), sortable=True)
-    instance = tables.Column("resource", verbose_name=_("Resource"), sortable=True)
-    cpu = tables.Column(get_cpu_time, verbose_name=_("CPU time"), summation="sum", sortable=True)
+    instance = tables.Column("resource",
+                             verbose_name=_("Resource"),
+                             sortable=True)
+    cpu = tables.Column(get_cpu_time,
+                        verbose_name=_("CPU time"),
+                        summation="sum",
+                        sortable=True)
 
     def get_object_id(self, datum):
         return datum.tenant + datum.user + datum.resource
@@ -243,4 +356,3 @@ class CpuUsageTable(tables.DataTable):
         verbose_name = _("Global CPU Usage")
         table_actions = (CpuUsageFilterAction,)
         multi_select = False
-
