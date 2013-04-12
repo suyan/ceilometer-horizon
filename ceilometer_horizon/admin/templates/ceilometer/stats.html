@@ -184,7 +184,7 @@
 	  				svg.append("path")
  		     				.datum(data)
       						.attr("class", "line")
-						.style("stroke", "steelblue")
+						.style("stroke", "blue")
 						.style("stroke-width", 1.5)
 						.style("fill", "none")
       						.attr("d", line);
@@ -196,7 +196,7 @@
 						.enter().append("rect")
 						.attr("class", "bar")
 						.attr("width", 5)
-						.style("fill", "steelblue")
+						.style("fill", "blue")
       						.attr("x", function(d) { return x(d.date); })
       						.attr("y", function(d) { return y(d.value); })
       						.attr("height", function(d) { return height - y(d.value); });						
