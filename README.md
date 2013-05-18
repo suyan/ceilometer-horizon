@@ -5,6 +5,13 @@ This is a ceilometer plugin that enables ceilometer in Horizon.
 
 Installation
 ------------
+Must have install these packages
+
+    python-ceilometerclient
+    svglib
+    reportlab
+    keystone
+
 Just type in the directory:
 
     python setup.py install

@@ -33,7 +33,7 @@ packages, package_data = [], {}
 root_dir = os.path.dirname(__file__)
 if root_dir != '':
     os.chdir(root_dir)
-package_dir = 'package'
+package_dir = 'ceilometer_horizon'
 
 for dirpath, dirnames, filenames in os.walk(package_dir):
     # Ignore PEP 3147 cache dirs and those whose names start with '.'
